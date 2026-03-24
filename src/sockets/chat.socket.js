@@ -3,6 +3,7 @@ import { Message } from '../models/Message.js'
 import { Room } from '../models/Room.js'
 import { User } from '../models/User.js'
 import { verifyToken } from '../utils/jwt.js'
+import { deleteFromCloudinary } from '../utils/cloudinaryUpload.js'
 import {
   asTrimmedString,
   isLikelyUrl,
@@ -294,6 +295,56 @@ export const setupChatSocket = (io) => {
         })
       } catch (_error) {
         socket.emit('error:socket', { message: 'Failed to set read receipt' })
+      }
+    })
+
+    socket.on('message:delete', async (payload) => {
+      try {
+        const messageId = payload?.messageId
+
+        if (!isValidObjectId(messageId)) {
+          socket.emit('error:socket', { message: 'Invalid messageId' })
+          return
+        }
+
+        const message = await Message.findById(messageId)
+        if (!message) {
+          socket.emit('error:socket', { message: 'Message not found' })
+          return
+        }
+
+        const room = await Room.findById(message.roomId)
+        if (!room) {
+          socket.emit('error:socket', { message: 'Room not found' })
+          return
+        }
+
+        const isSender = String(message.sender) === userId
+        const isRoomCreator = String(room.createdBy) === userId
+
+        if (!isSender && !isRoomCreator) {
+          socket.emit('error:socket', {
+            message: 'Only the sender or room creator can delete this message',
+          })
+          return
+        }
+
+        if (message.cloudinaryPublicId) {
+          await deleteFromCloudinary(
+            message.cloudinaryPublicId,
+            message.cloudinaryResourceType || 'image',
+          )
+        }
+
+        await message.deleteOne()
+
+        io.to(String(room._id)).emit('message:deleted', {
+          messageId,
+          roomId: String(room._id),
+          deletedBy: userId,
+        })
+      } catch (_error) {
+        socket.emit('error:socket', { message: 'Failed to delete message' })
       }
     })
 

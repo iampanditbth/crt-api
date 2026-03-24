@@ -26,6 +26,14 @@ const messageSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    cloudinaryPublicId: {
+      type: String,
+      default: '',
+    },
+    cloudinaryResourceType: {
+      type: String,
+      default: '',
+    },
     fileName: {
       type: String,
       default: '',

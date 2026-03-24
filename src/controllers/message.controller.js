@@ -3,7 +3,10 @@ import { Message } from '../models/Message.js'
 import { Room } from '../models/Room.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { ApiError } from '../utils/ApiError.js'
-import { uploadBufferToCloudinary } from '../utils/cloudinaryUpload.js'
+import {
+  deleteFromCloudinary,
+  uploadBufferToCloudinary,
+} from '../utils/cloudinaryUpload.js'
 import {
   asTrimmedString,
   isValidMessageType,
@@ -81,6 +84,8 @@ export const uploadFileMessage = asyncHandler(async (req, res) => {
     messageType,
     content,
     fileUrl: uploaded.secure_url,
+    cloudinaryPublicId: uploaded.public_id || '',
+    cloudinaryResourceType: uploaded.resource_type || 'image',
     fileName: req.file.originalname,
     mimeType: req.file.mimetype,
     fileSize: req.file.size,
@@ -92,5 +97,49 @@ export const uploadFileMessage = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message,
+  })
+})
+
+export const deleteMessage = asyncHandler(async (req, res) => {
+  const { messageId } = req.params
+  const userId = String(req.user._id)
+
+  if (!isValidObjectId(messageId)) {
+    throw new ApiError(400, 'Invalid messageId')
+  }
+
+  const message = await Message.findById(messageId)
+  if (!message) {
+    throw new ApiError(404, 'Message not found')
+  }
+
+  const room = await Room.findById(message.roomId)
+  if (!room) {
+    throw new ApiError(404, 'Room not found')
+  }
+
+  const isSender = String(message.sender) === userId
+  const isRoomCreator = String(room.createdBy) === userId
+
+  if (!isSender && !isRoomCreator) {
+    throw new ApiError(
+      403,
+      'Only the sender or room creator can delete this message',
+    )
+  }
+
+  if (message.cloudinaryPublicId) {
+    await deleteFromCloudinary(
+      message.cloudinaryPublicId,
+      message.cloudinaryResourceType || 'image',
+    )
+  }
+
+  await message.deleteOne()
+
+  res.status(200).json({
+    success: true,
+    message: 'Message deleted successfully',
+    deletedMessageId: messageId,
   })
 })

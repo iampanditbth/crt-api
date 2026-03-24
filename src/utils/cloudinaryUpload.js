@@ -23,3 +23,16 @@ export const uploadBufferToCloudinary = (buffer, options = {}) => {
     Readable.from(buffer).pipe(uploadStream)
   })
 }
+
+export const deleteFromCloudinary = async (
+  publicId,
+  resourceType = 'image',
+) => {
+  if (!publicId) {
+    return null
+  }
+
+  return cloudinary.uploader.destroy(publicId, {
+    resource_type: resourceType,
+  })
+}

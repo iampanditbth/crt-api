@@ -147,6 +147,7 @@ Body (JSON):
 
 - GET /api/messages/:roomId
 - POST /api/messages/upload
+- DELETE /api/messages/:messageId
 
 #### GET /api/messages/:roomId
 
@@ -166,6 +167,16 @@ Example use case:
 
 - Upload image or file to Cloudinary
 - Save returned URL in message document
+
+#### DELETE /api/messages/:messageId
+
+Deletes a message from MongoDB.
+If the message contains a Cloudinary file, it is removed from Cloudinary too.
+
+Authorization rule:
+
+- message sender can delete
+- room creator can delete
 
 ## 6. Socket.IO real-time API
 
@@ -197,12 +208,15 @@ Socket auth:
   payload: { roomId }
 - message:read
   payload: { messageId }
+- message:delete
+  payload: { messageId }
 
 ### Server -> Client events
 
 - message:new
 - typing:update
 - message:read-update
+- message:deleted
 - room:user-joined
 - room:user-left
 - user:status
