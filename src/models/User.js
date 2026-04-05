@@ -31,6 +31,12 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    profileData: {
+      timer: { type: Number, default: 0 },
+      analytics: { type: Object, default: {} },
+      hubInfo: { type: Object, default: {} },
+      academyProgress: { type: Object, default: {} },
+    },
   },
   {
     timestamps: { createdAt: true, updatedAt: false },

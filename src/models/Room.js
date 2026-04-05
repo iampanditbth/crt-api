@@ -45,11 +45,10 @@ const roomSchema = new mongoose.Schema(
 
 roomSchema.index({ name: 1, createdBy: 1 }, { unique: true })
 
-roomSchema.pre('save', function (next) {
+roomSchema.pre('save', async function () {
   if (this.isNew && this.isPrivate && !this.code) {
     this.code = generateCode()
   }
-  next()
 })
 
 export const Room = mongoose.model('Room', roomSchema)
