@@ -9,6 +9,7 @@ import {
   isValidMessageType,
   isValidObjectId,
 } from '../utils/validate.js'
+import { uploadBufferToCloudinary } from '../utils/cloudinaryUpload.js'
 
 const ensureRoomMembership = async (roomId, userId) => {
   const room = await Room.findById(roomId)
@@ -77,21 +78,31 @@ export const uploadFileMessage = asyncHandler(async (req, res) => {
 
   await ensureRoomMembership(roomId, req.user._id)
 
+  const uploadResult = await uploadBufferToCloudinary(req.file.buffer, {
+    resource_type: 'auto',
+    public_id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    use_filename: true,
+    unique_filename: true,
+    filename_override: req.file.originalname,
+  })
+
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
+
   const message = await Message.create({
     roomId,
     sender: req.user._id,
     messageType,
     content,
     replyTo,
-    localFilePath: req.file.path,
+    fileUrl: uploadResult.secure_url || uploadResult.url || '',
+    cloudinaryPublicId: uploadResult.public_id || '',
+    cloudinaryResourceType: uploadResult.resource_type || 'raw',
+    expiresAt,
     fileName: req.file.originalname,
     mimeType: req.file.mimetype,
     fileSize: req.file.size,
     readBy: [{ user: req.user._id }],
   })
-
-  message.fileUrl = `${req.protocol}://${req.get('host')}/api/messages/download/${message._id}`
-  await message.save()
 
   await message.populate('sender', '_id username email')
   if (replyTo) {
@@ -160,41 +171,24 @@ export const downloadFile = asyncHandler(async (req, res) => {
 
   await ensureRoomMembership(message.roomId, req.user._id)
 
-  if (message.isDeletedFromServer || !message.localFilePath) {
+  if (message.isDeletedFromServer || !message.fileUrl) {
     throw new ApiError(410, 'File has already been removed from the server.')
   }
 
-  const filePath = message.localFilePath
-  if (!fs.existsSync(filePath)) {
-    throw new ApiError(404, 'File missing from server')
-  }
-
   const hasDownloaded = message.downloadedBy.some(
-    (d) => String(d.user) === String(req.user._id)
+    (d) => String(d.user) === String(req.user._id),
   )
 
-  res.download(filePath, message.fileName, async (err) => {
-    if (err) {
-      console.error('Error downloading file:', err)
-      return
-    }
+  if (String(message.sender) !== String(req.user._id) && !hasDownloaded) {
+    message.downloadedBy.push({ user: req.user._id })
+    await message.save()
+  }
 
-    if (String(message.sender) !== String(req.user._id)) {
-      if (!hasDownloaded) {
-        message.downloadedBy.push({ user: req.user._id })
-      }
-      
-      message.isDeletedFromServer = true
-      await message.save()
-
-      try {
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath)
-        }
-      } catch (err) {
-        console.error('Could not delete file', err)
-      }
-    }
+  res.status(200).json({
+    success: true,
+    url: message.fileUrl,
+    fileName: message.fileName,
+    mimeType: message.mimeType,
   })
 })
 

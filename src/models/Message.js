@@ -15,7 +15,7 @@ const messageSchema = new mongoose.Schema(
     },
     expiresAt: {
       type: Date,
-      default: () => new Date(+new Date() + 24*60*60*1000),
+      default: null,
       index: { expires: '1d' },
     },
     messageType: {

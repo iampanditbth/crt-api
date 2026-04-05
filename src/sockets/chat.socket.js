@@ -80,20 +80,20 @@ export const setupChatSocket = (io) => {
 
   const broadcastRoomStats = async (ioInstance, roomId) => {
     try {
-      const room = await Room.findById(roomId).populate('members', 'isOnline');
-      if (!room) return;
-      const total = room.members.length;
-      const online = room.members.filter(m => m.isOnline).length;
+      const room = await Room.findById(roomId).populate('members', 'isOnline')
+      if (!room) return
+      const total = room.members.length
+      const online = room.members.filter((m) => m.isOnline).length
       ioInstance.to(String(roomId)).emit('room:stats', {
         roomId: String(roomId),
         total,
         online,
-        offline: total - online
-      });
+        offline: total - online,
+      })
     } catch (err) {
-      console.error('Failed to broadcast room stats', err);
+      console.error('Failed to broadcast room stats', err)
     }
-  };
+  }
 
   io.on('connection', async (socket) => {
     const userId = String(socket.user._id)
@@ -143,7 +143,7 @@ export const setupChatSocket = (io) => {
             email: socket.user.email,
           },
         })
-        await broadcastRoomStats(io, roomId);
+        await broadcastRoomStats(io, roomId)
       } catch (_error) {
         socket.emit('error:socket', { message: 'Failed to join room' })
       }
@@ -172,7 +172,7 @@ export const setupChatSocket = (io) => {
           roomId,
           userId,
         })
-        await broadcastRoomStats(io, roomId);
+        await broadcastRoomStats(io, roomId)
       } catch (_error) {
         socket.emit('error:socket', { message: 'Failed to leave room' })
       }
@@ -181,12 +181,14 @@ export const setupChatSocket = (io) => {
     socket.on('message:send', async (payload) => {
       try {
         const roomId = payload?.roomId
+        const messageId = payload?._id || payload?.messageId
         const messageType = asTrimmedString(payload?.messageType, 'text')
         const content = asTrimmedString(payload?.content)
         const fileUrl = asTrimmedString(payload?.fileUrl)
         const fileName = asTrimmedString(payload?.fileName)
         const mimeType = asTrimmedString(payload?.mimeType)
         const fileSize = Number(payload?.fileSize || 0)
+        const replyTo = payload?.replyTo || null
 
         if (!isValidObjectId(roomId)) {
           socket.emit('error:socket', { message: 'Invalid roomId' })
@@ -210,6 +212,26 @@ export const setupChatSocket = (io) => {
             message: 'Join room before sending messages',
           })
           return
+        }
+
+        // If upload endpoint already created message in MongoDB, just broadcast it.
+        if (isValidObjectId(messageId)) {
+          const existing = await Message.findById(messageId).populate(
+            'sender',
+            '_id username email',
+          )
+
+          if (
+            existing &&
+            String(existing.roomId) === String(roomId) &&
+            String(existing.sender._id || existing.sender) === userId
+          ) {
+            if (existing.replyTo) {
+              await existing.populate('replyTo')
+            }
+            io.to(roomId).emit('message:new', existing)
+            return
+          }
         }
 
         if ((messageType === 'text' || messageType === 'link') && !content) {
@@ -243,6 +265,7 @@ export const setupChatSocket = (io) => {
           sender: userId,
           messageType,
           content,
+          replyTo,
           fileUrl,
           fileName,
           mimeType,
@@ -305,6 +328,33 @@ export const setupChatSocket = (io) => {
         if (!alreadyRead) {
           message.readBy.push({ user: userId, readAt: new Date() })
           await message.save()
+
+          // File sharing follows temporary logic - delete automatically when user received/read
+          if (
+            message.fileUrl &&
+            message.cloudinaryPublicId &&
+            !message.isDeletedFromServer
+          ) {
+            try {
+              const { deleteFromCloudinary } =
+                await import('../utils/cloudinaryUpload.js')
+              await deleteFromCloudinary(
+                message.cloudinaryPublicId,
+                message.cloudinaryResourceType,
+              )
+              message.fileUrl = ''
+              message.isDeletedFromServer = true
+              await message.save()
+
+              io.to(String(message.roomId)).emit('message:update', {
+                messageId: message._id,
+                isDeletedFromServer: true,
+                fileUrl: '',
+              })
+            } catch (e) {
+              console.error('Failed to cleanup file on read:', e)
+            }
+          }
         }
 
         io.to(String(message.roomId)).emit('message:read-update', {
@@ -376,9 +426,9 @@ export const setupChatSocket = (io) => {
         await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen })
         io.emit('user:status', { userId, isOnline: false, lastSeen })
 
-        const userRooms = await Room.find({ members: userId });
+        const userRooms = await Room.find({ members: userId })
         for (const r of userRooms) {
-          await broadcastRoomStats(io, r._id);
+          await broadcastRoomStats(io, r._id)
         }
       }
     })
