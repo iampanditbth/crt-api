@@ -9,7 +9,7 @@ import {
   isValidMessageType,
   isValidObjectId,
 } from '../utils/validate.js'
-import { uploadBufferToCloudinary } from '../utils/cloudinaryUpload.js'
+import { uploadBufferToCloudinary, deleteFromCloudinary } from '../utils/cloudinaryUpload.js'
 
 const ensureRoomMembership = async (roomId, userId) => {
   const room = await Room.findById(roomId)
@@ -226,5 +226,51 @@ export const shareMessage = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: newMessage,
+  })
+})
+
+export const acknowledgeDownload = asyncHandler(async (req, res) => {
+  const { messageId } = req.params
+
+  if (!isValidObjectId(messageId)) {
+    throw new ApiError(400, 'Invalid messageId')
+  }
+
+  const message = await Message.findById(messageId)
+  if (!message) {
+    throw new ApiError(404, 'Message not found')
+  }
+
+  // Double check membership just in case
+  await ensureRoomMembership(message.roomId, req.user._id)
+
+  // Mark as downloaded if not already
+  const hasDownloaded = message.downloadedBy.some(
+    (d) => String(d.user) === String(req.user._id),
+  )
+
+  if (String(message.sender) !== String(req.user._id) && !hasDownloaded) {
+    message.downloadedBy.push({ user: req.user._id })
+  }
+
+  // Delete from Cloudinary if not already deleted.
+  if (!message.isDeletedFromServer && message.cloudinaryPublicId) {
+    try {
+      await deleteFromCloudinary(
+        message.cloudinaryPublicId,
+        message.cloudinaryResourceType || 'auto',
+      )
+      message.isDeletedFromServer = true
+    } catch (error) {
+      console.error('Failed to delete from Cloudinary', error)
+    }
+  }
+
+  await message.save()
+
+  res.status(200).json({
+    success: true,
+    message: 'Message downloaded and server copy cleared',
+    isDeletedFromServer: message.isDeletedFromServer,
   })
 })

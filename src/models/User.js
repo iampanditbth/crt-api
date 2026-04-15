@@ -27,11 +27,17 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isPublic: {
+      type: Boolean,
+      default: false,
+    },
     lastSeen: {
       type: Date,
       default: Date.now,
     },
     profileData: {
+      name: { type: String, default: '' },
+      course: { type: String, default: '' },
       timer: { type: Number, default: 0 },
       analytics: { type: Object, default: {} },
       hubInfo: { type: Object, default: {} },
