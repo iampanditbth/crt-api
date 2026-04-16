@@ -29,7 +29,7 @@ const userSchema = new mongoose.Schema(
     },
     isPublic: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     lastSeen: {
       type: Date,

@@ -36,13 +36,11 @@ export const updateProfileData = asyncHandler(async (req, res) => {
     { new: true },
   ).select('profileData isPublic')
 
-  res
-    .status(200)
-    .json({
-      success: true,
-      profileData: user.profileData,
-      isPublic: user.isPublic,
-    })
+  res.status(200).json({
+    success: true,
+    profileData: user.profileData,
+    isPublic: user.isPublic,
+  })
 })
 
 export const updatePrivacy = asyncHandler(async (req, res) => {
@@ -64,9 +62,9 @@ export const searchUsers = asyncHandler(async (req, res) => {
 
   const searchRegex = new RegExp(query, 'i')
 
-  // Search for public users matching username, name, or course
+  // Search for users matching username, name, or course.
+  // New signups may not have profileData.name populated, so username search captures them.
   const users = await User.find({
-    isPublic: true,
     _id: { $ne: req.user._id },
     $or: [
       { username: searchRegex },
@@ -78,6 +76,7 @@ export const searchUsers = asyncHandler(async (req, res) => {
       '_id username profileData.name profileData.course isOnline lastSeen',
     )
     .limit(20)
+    .lean() // make app faster
 
   res.status(200).json({ success: true, users })
 })
@@ -142,13 +141,11 @@ export const followUser = asyncHandler(async (req, res) => {
     await targetUser.save({ validateBeforeSave: false })
   }
 
-  res
-    .status(200)
-    .json({
-      success: true,
-      message: 'User followed successfully',
-      following: user.following,
-    })
+  res.status(200).json({
+    success: true,
+    message: 'User followed successfully',
+    following: user.following,
+  })
 })
 
 export const unfollowUser = asyncHandler(async (req, res) => {
@@ -169,13 +166,11 @@ export const unfollowUser = asyncHandler(async (req, res) => {
     await targetUser.save({ validateBeforeSave: false })
   }
 
-  res
-    .status(200)
-    .json({
-      success: true,
-      message: 'User unfollowed successfully',
-      following: user.following,
-    })
+  res.status(200).json({
+    success: true,
+    message: 'User unfollowed successfully',
+    following: user.following,
+  })
 })
 
 export const getFeed = asyncHandler(async (req, res) => {
@@ -213,11 +208,9 @@ export const getUserNetwork = asyncHandler(async (req, res) => {
 
   if (!user)
     return res.status(404).json({ success: false, message: 'User not found' })
-  res
-    .status(200)
-    .json({
-      success: true,
-      followers: user.followers,
-      following: user.following,
-    })
+  res.status(200).json({
+    success: true,
+    followers: user.followers,
+    following: user.following,
+  })
 })
