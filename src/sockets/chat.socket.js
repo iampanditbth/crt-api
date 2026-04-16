@@ -329,28 +329,43 @@ export const setupChatSocket = (io) => {
           message.readBy.push({ user: userId, readAt: new Date() })
           await message.save()
 
-          // File sharing follows temporary logic - delete automatically when user received/read
+          // File sharing follows temporary logic - delete sequentially when all members received/read
           if (
             message.fileUrl &&
             message.cloudinaryPublicId &&
             !message.isDeletedFromServer
           ) {
             try {
-              const { deleteFromCloudinary } =
-                await import('../utils/cloudinaryUpload.js')
-              await deleteFromCloudinary(
-                message.cloudinaryPublicId,
-                message.cloudinaryResourceType,
-              )
-              message.fileUrl = ''
-              message.isDeletedFromServer = true
-              await message.save()
+              const room = await Room.findById(message.roomId)
+              let allDownloaded = true
+              if (room && room.members) {
+                for (const mem of room.members) {
+                  if (String(mem) === String(message.sender)) continue
+                  const didRead = message.readBy.some((r) => String(r.user) === String(mem))
+                  if (!didRead) {
+                    allDownloaded = false
+                    break
+                  }
+                }
+              }
 
-              io.to(String(message.roomId)).emit('message:update', {
-                messageId: message._id,
-                isDeletedFromServer: true,
-                fileUrl: '',
-              })
+              if (allDownloaded) {
+                const { deleteFromCloudinary } =
+                  await import('../utils/cloudinaryUpload.js')
+                await deleteFromCloudinary(
+                  message.cloudinaryPublicId,
+                  message.cloudinaryResourceType,
+                )
+                message.fileUrl = ''
+                message.isDeletedFromServer = true
+                await message.save()
+
+                io.to(String(message.roomId)).emit('message:update', {
+                  messageId: message._id,
+                  isDeletedFromServer: true,
+                  fileUrl: '',
+                })
+              }
             } catch (e) {
               console.error('Failed to cleanup file on read:', e)
             }

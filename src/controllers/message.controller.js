@@ -253,16 +253,31 @@ export const acknowledgeDownload = asyncHandler(async (req, res) => {
     message.downloadedBy.push({ user: req.user._id })
   }
 
-  // Delete from Cloudinary if not already deleted.
+  // Delete from Cloudinary if all members have downloaded
   if (!message.isDeletedFromServer && message.cloudinaryPublicId) {
-    try {
-      await deleteFromCloudinary(
-        message.cloudinaryPublicId,
-        message.cloudinaryResourceType || 'auto',
-      )
-      message.isDeletedFromServer = true
-    } catch (error) {
-      console.error('Failed to delete from Cloudinary', error)
+    const room = await Room.findById(message.roomId)
+    let allDownloaded = true
+    if (room && room.members) {
+      for (const mem of room.members) {
+        if (String(mem) === String(message.sender)) continue
+        const didDownload = message.downloadedBy.some((d) => String(d.user) === String(mem))
+        if (!didDownload) {
+          allDownloaded = false
+          break
+        }
+      }
+    }
+
+    if (allDownloaded) {
+      try {
+        await deleteFromCloudinary(
+          message.cloudinaryPublicId,
+          message.cloudinaryResourceType || 'auto',
+        )
+        message.isDeletedFromServer = true
+      } catch (error) {
+        console.error('Failed to delete from Cloudinary', error)
+      }
     }
   }
 
