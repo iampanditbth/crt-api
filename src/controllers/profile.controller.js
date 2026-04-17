@@ -20,7 +20,8 @@ export const getProfileInfo = asyncHandler(async (req, res) => {
 })
 
 export const updateProfileData = asyncHandler(async (req, res) => {
-  const { timer, analytics, hubInfo, academyProgress, name, course } = req.body
+  const { timer, analytics, hubInfo, academyProgress, name, course, isPublic } =
+    req.body
   const updateObj = {}
   if (timer !== undefined) updateObj['profileData.timer'] = timer
   if (analytics !== undefined) updateObj['profileData.analytics'] = analytics
@@ -29,6 +30,7 @@ export const updateProfileData = asyncHandler(async (req, res) => {
     updateObj['profileData.academyProgress'] = academyProgress
   if (name !== undefined) updateObj['profileData.name'] = name
   if (course !== undefined) updateObj['profileData.course'] = course
+  if (isPublic !== undefined) updateObj['isPublic'] = isPublic
 
   const user = await User.findByIdAndUpdate(
     req.user._id,
