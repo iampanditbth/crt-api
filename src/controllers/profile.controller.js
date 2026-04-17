@@ -4,7 +4,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 
 export const getProfileInfo = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).select(
-    'profileData following followers',
+    'profileData following followers isPublic',
   )
   const notifications = await Notification.find({ userId: req.user._id })
     .sort({ createdAt: -1 })
@@ -13,6 +13,7 @@ export const getProfileInfo = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     profileData: user.profileData,
+    isPublic: user.isPublic,
     following: user.following || [],
     followers: user.followers || [],
     notifications,
