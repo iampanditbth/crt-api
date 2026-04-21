@@ -41,8 +41,16 @@ const userSchema = new mongoose.Schema(
       timer: { type: Number, default: 0 },
       analytics: { type: Object, default: {} },
       hubInfo: { type: Object, default: {} },
-      academyProgress: { type: Object, default: {} },
+        academyProgress: { type: Object, default: {} },
     },
+    streak: {
+      current: { type: Number, default: 0 },
+      longest: { type: Number, default: 0 },
+      lastActivity: { type: Date, default: null },
+    },
+    totalCompletions: { type: Number, default: 0 },
+    weeklyScore: { type: Number, default: 0 },
+    weekReset: { type: Date, default: null },
     followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   },
@@ -62,5 +70,9 @@ userSchema.pre('save', async function save() {
 userSchema.methods.comparePassword = function comparePassword(rawPassword) {
   return bcrypt.compare(rawPassword, this.password)
 }
+
+// Optimized indexes for leaderboard & streak queries
+userSchema.index({ weeklyScore: -1, _id: 1 })
+userSchema.index({ 'streak.lastActivity': 1 })
 
 export const User = mongoose.model('User', userSchema)

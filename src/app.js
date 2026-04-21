@@ -11,6 +11,7 @@ import messageRoutes from './routes/message.routes.js'
 import mentorRoutes from './routes/mentor.routes.js'
 import profileRoutes from './routes/profile.routes.js'
 import notificationRoutes from './routes/notification.routes.js'
+import leaderboardRoutes from './routes/leaderboard.routes.js'
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js'
 
 export const app = express()
@@ -60,6 +61,7 @@ app.use('/api/messages', messageRoutes)
 app.use('/api/mentor', mentorRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/notifications', notificationRoutes)
+app.use('/api/leaderboard', leaderboardRoutes)
 
 app.use(notFoundHandler)
 app.use(errorHandler)
